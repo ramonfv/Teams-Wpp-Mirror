@@ -37,4 +37,21 @@ def initialize_database() -> None:
             )
             """
         )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                whatsapp_group_id TEXT NOT NULL UNIQUE,
+                whatsapp_group_name TEXT NOT NULL,
+                teams_team_name TEXT NOT NULL,
+                teams_channel_name TEXT NOT NULL,
+                teams_webhook_url TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
         connection.commit()

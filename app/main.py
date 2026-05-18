@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
@@ -5,23 +6,32 @@ from fastapi import FastAPI, HTTPException
 from app.adapters.teams_webhook_sender import TeamsWebhookSender
 from app.adapters.whatsapp_mock_receiver import MockWhatsAppPayload
 from app.database import initialize_database
+from app.domain.mapping import ChannelMappingCreate
 from app.domain.message import BridgeMessage, MessageSource, MessageType
+from app.repositories.mapping_repository import MappingRepository
 from app.repositories.message_repository import MessageRepository
 from app.services.message_router import MessageRouter
 
-app = FastAPI(title="Teams WhatsApp Mirror")
 
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     initialize_database()
+    yield
 
+
+app = FastAPI(
+    title="Teams WhatsApp Mirror",
+    lifespan=lifespan,
+)
 
 message_repository = MessageRepository()
+mapping_repository = MappingRepository()
 teams_sender = TeamsWebhookSender()
+
 router = MessageRouter(
     teams_sender=teams_sender,
     message_repository=message_repository,
+    mapping_repository=mapping_repository,
 )
 
 
@@ -34,6 +44,45 @@ async def health():
 async def list_recent_messages(limit: int = 20):
     return {
         "messages": message_repository.list_recent_messages(limit=limit)
+    }
+
+
+@app.post("/mappings/whatsapp-to-teams")
+async def create_or_update_mapping(mapping: ChannelMappingCreate):
+    mapping_id = mapping_repository.upsert_mapping(mapping)
+
+    return {
+        "status": "mapping_saved",
+        "mapping_id": mapping_id,
+        "whatsapp_group_id": mapping.whatsapp_group_id,
+        "whatsapp_group_name": mapping.whatsapp_group_name,
+        "teams_team_name": mapping.teams_team_name,
+        "teams_channel_name": mapping.teams_channel_name,
+    }
+
+
+@app.get("/mappings/whatsapp-to-teams")
+async def list_mappings():
+    return {
+        "mappings": mapping_repository.list_mappings()
+    }
+
+
+@app.delete("/mappings/whatsapp-to-teams/{whatsapp_group_id}")
+async def deactivate_mapping(whatsapp_group_id: str):
+    deactivated = mapping_repository.deactivate_mapping(
+        whatsapp_group_id=whatsapp_group_id,
+    )
+
+    if not deactivated:
+        raise HTTPException(
+            status_code=404,
+            detail="Mapeamento não encontrado.",
+        )
+
+    return {
+        "status": "mapping_deactivated",
+        "whatsapp_group_id": whatsapp_group_id,
     }
 
 
@@ -54,7 +103,7 @@ async def receive_mock_whatsapp_message(payload: MockWhatsAppPayload):
     except Exception as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"Erro ao enviar mensagem para o Teams: {exc}",
+            detail=f"Erro ao rotear mensagem para o Teams: {exc}",
         ) from exc
 
     return {
