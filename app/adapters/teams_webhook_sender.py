@@ -9,18 +9,32 @@ class TeamsWebhookSender:
         self.webhook_url = webhook_url or settings.teams_webhook_url
 
     async def send_message(self, message: BridgeMessage) -> None:
-        text = (
-            f"**{message.source_group_name}**\n\n"
-            f"**{message.author_name}:** {message.body}"
-        )
-
-        payload = {
-            "text": text,
-            "group_name": message.source_group_name,
-            "author_name": message.author_name,
-            "body": message.body,
+        card_payload = {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.4",
+            "body": [
+                {
+                    "type": "TextBlock",
+                    "text": "Mensagem recebida do WhatsApp Bridge",
+                    "weight": "Bolder",
+                    "size": "Medium",
+                    "wrap": True,
+                },
+                {
+                    "type": "TextBlock",
+                    "text": message.source_group_name,
+                    "weight": "Bolder",
+                    "wrap": True,
+                },
+                {
+                    "type": "TextBlock",
+                    "text": f"{message.author_name}: {message.body}",
+                    "wrap": True,
+                },
+            ],
         }
 
         async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(self.webhook_url, json=payload)
+            response = await client.post(self.webhook_url, json=card_payload)
             response.raise_for_status()
