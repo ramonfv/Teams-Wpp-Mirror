@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 
 from app.adapters.teams_webhook_sender import TeamsWebhookSender
 from app.adapters.whatsapp_mock_receiver import MockWhatsAppPayload
@@ -40,6 +40,9 @@ whatsapp_outbox_service = WhatsAppOutboxService(
     message_repository=message_repository,
     whatsapp_sender=whatsapp_mock_sender,
 )
+
+async def process_outbox_message_background(message_id: int) -> None:
+    await whatsapp_outbox_service.process_message_by_id(message_id)
 
 message_repository = MessageRepository()
 mapping_repository = MappingRepository()
@@ -157,7 +160,11 @@ async def process_whatsapp_outbox(limit: int = 10):
     }
 
 @app.post("/mock/teams/message")
-async def receive_mock_teams_message(payload: MockTeamsPayload):
+async def receive_mock_teams_message(
+    payload: MockTeamsPayload,
+    background_tasks: BackgroundTasks,
+    auto_process_outbox: bool = False,
+):
     message = BridgeMessage(
         source=MessageSource.TEAMS,
         source_group_id=payload.target_whatsapp_group_id,
@@ -263,4 +270,22 @@ async def receive_mock_teams_message(payload: MockTeamsPayload):
         "status": "ready_to_send_to_whatsapp",
         "message_id": message_id,
         "message": message,
+    }   
+
+
+@app.post("/mock/whatsapp/outbox/process/{message_id}")
+async def process_whatsapp_outbox_message(message_id: int):
+    try:
+        result = await whatsapp_outbox_service.process_message_by_id(
+            message_id=message_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "status": "outbox_message_processed",
+        "result": result,
     }

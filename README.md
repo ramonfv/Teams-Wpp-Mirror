@@ -157,4 +157,21 @@ TEAMS_WEBHOOK_URL=https://example.webhook.office.com/...
 APP_ENV=local
 ```
 ---
-s
+
+
+```
+# Teams Wpp Mirror
+
+Middleware experimental para espelhar mensagens entre grupos WhatsApp e canais do Microsoft Teams.
+
+O projeto atualmente implementa um MVP local com FastAPI, SQLite, Microsoft Teams Workflow/Webhook e fluxos mock para WhatsApp e Teams.
+
+---
+
+## Current status
+
+This project currently supports:
+
+```text
+Mock WhatsApp → FastAPI → Teams Workflow/Webhook
+Mock Teams → FastAPI → Authorized Outbox → Mock WhatsApp Sender

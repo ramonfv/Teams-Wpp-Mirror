@@ -158,3 +158,35 @@ class MessageRepository:
             ).fetchall()
 
         return [dict(row) for row in rows]
+
+    def get_message_by_id(self, message_id: int) -> dict | None:
+        with get_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    id,
+                    source,
+                    source_group_id,
+                    source_group_name,
+                    author_name,
+                    author_id,
+                    body,
+                    message_type,
+                    direction,
+                    status,
+                    external_message_id,
+                    error_message,
+                    delivery_attempts,
+                    last_attempt_at,
+                    created_at,
+                    updated_at
+                FROM bridge_messages
+                WHERE id = ?
+                """,
+                (message_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return dict(row)
